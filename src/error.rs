@@ -5,7 +5,7 @@ use std::{
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-struct Error {
+pub struct Error {
     err: ErrorKind,
 }
 

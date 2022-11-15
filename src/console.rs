@@ -1,48 +1,65 @@
-use std::io;
-
 use crossterm::event::KeyEvent;
-use tui::{backend::Backend, terminal::CompletedFrame, Terminal};
+use tui::{backend::Backend, Terminal};
 
-use crate::input::{InputHandler, Interruption};
+use crate::error::Result;
+use crate::{
+    input::{InputHandler, Interruption},
+    tui::TUI,
+};
 
 pub struct Console<B: Backend> {
     terminal: Terminal<B>,
-    // TODO ui: UI
+    tui: TUI,
     input: InputHandler,
     input_mode: InputMode,
 
-    exit: bool,
+    should_exit: bool,
 }
 
 impl<B: Backend> Console<B> {
-    pub fn new(terminal: Terminal<B>) -> Self {
-        Self {
+    pub fn new(terminal: Terminal<B>) -> Result<Self> {
+        let mut tui = TUI::new();
+        tui.resize(terminal.size()?);
+        Ok(Self {
             terminal,
-            // TODO: ui: UI::init(),
+            tui,
             input: InputHandler::new(),
             input_mode: InputMode::Editing,
 
-            exit: false,
+            should_exit: false,
+        })
+    }
+
+    pub fn process_input(&mut self, event: KeyEvent) {
+        match self.input_mode {
+            InputMode::Editing => self.process_editing(event),
+            InputMode::Control => self.process_controls(event),
         }
     }
 
-    pub fn process_controls(&mut self, event: KeyEvent) {}
+    fn process_controls(&mut self, event: KeyEvent) {}
 
-    pub fn process_editing(&mut self, event: KeyEvent) {
+    fn process_editing(&mut self, event: KeyEvent) {
         if let Some(interruption) = self.input.process_input(event) {
             match interruption {
                 Interruption::Enter(buf) => println!("You entered: {buf}"),
-                Interruption::Esc => self.exit = true,
+                Interruption::Esc => self.should_exit = true,
             }
         }
     }
 
-    pub fn input_mode(&self) -> InputMode {
-        self.input_mode
+    pub fn render(&mut self) -> Result<()> {
+        self.terminal.draw(|frame| self.tui.render(frame))?;
+        Ok(())
+    }
+
+    pub fn resize(&mut self) -> Result<()> {
+        self.tui.resize(self.terminal.size()?);
+        Ok(())
     }
 
     pub fn should_exit(&self) -> bool {
-        self.exit
+        self.should_exit
     }
 }
 
