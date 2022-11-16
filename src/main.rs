@@ -65,7 +65,7 @@ fn main() -> Result<()> {
         if elapsed >= TICK_INTERVAL {
             last = Instant::now();
 
-            bot.tick()?;
+            bot.tick();
 
             console.render()?;
         }
