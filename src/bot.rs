@@ -6,7 +6,7 @@ use std::{
     thread, fmt::Display,
 };
 
-use binance::{errors::Result as BinanceResult, market::Market, model::SymbolPrice, api::Binance};
+use binance::{errors::Result as BinanceResult, market::Market, model::{SymbolPrice, PriceStats}, api::Binance};
 
 use crate::error::Result;
 
@@ -14,12 +14,11 @@ pub struct Bot {
     market: Arc<Market>,
 
     symbol: Symbol,
-    price_tracker: PriceTracker,
+    live_stats: LiveStats,
 
     tick: u16,
 }
 
-// TODO replace unwrap() with ?
 impl Bot {
     const TICKS_PER_UPDATE: u16 = 2;
     const DEFAULT_SYMBOL: &str = "ETHUSDT";
@@ -27,12 +26,12 @@ impl Bot {
     pub fn with_symbol<S: Into<Symbol>>(symbol: S) -> Result<Self> {
         let symbol = symbol.into();
         let market = Arc::new(Market::new(None, None));
-        let price_tracker = PriceTracker::new(market.clone(), symbol);
+        let live_stats = LiveStats::new(market.clone(), symbol);
         Ok(Self {
             market,
 
             symbol,
-            price_tracker,
+            live_stats,
 
             tick: 0,
         })
@@ -45,7 +44,7 @@ impl Bot {
     pub fn analyze(&mut self) {}
 
     pub fn tick(&mut self) {
-        self.price_tracker.track();
+        self.live_stats.update();
         self.tick += 1;
 
         if self.tick >= Self::TICKS_PER_UPDATE {
@@ -56,7 +55,7 @@ impl Bot {
 
     // TODO maybe do inlining
     pub fn get_price(&self) -> PriceLevel {
-        self.price_tracker.get_price()
+        self.live_stats.price()
     }
 
     pub fn get_symbol(&self) -> Symbol {
@@ -64,32 +63,37 @@ impl Bot {
     }
 }
 
-struct PriceTracker {
-    price: PriceLevel,
-    reader: Receiver<BinanceResult<SymbolPrice>>,
+struct LiveStats {
+    last_price: PriceLevel,
+    price_change: String,
+    price_change_percent: String,
+    volume: f64,
+    reader: Receiver<BinanceResult<PriceStats>>,
 }
 
-impl PriceTracker {
+impl LiveStats {
     fn new(market: Arc<Market>, symbol: Symbol) -> Self {
         let reader = Self::spawn_price_reader(market, symbol);
         Self {
-            price: PriceLevel::NAN,
+            last_price: Default::default(),
+            price_change: String::from("{PRICE CHANGE}"),
+            price_change_percent: String::from("{PRICE CHANGE PERCENT}"),
+            volume: Default::default(),
             reader,
         }
     }
 
-    fn track(&mut self) {
+    fn update(&mut self) {
         if let Some(price) = self.reader.try_iter().last() {
             match price {
-                Ok(p) => self.price = p.into(),
+                Ok(stats) => {self.stats = Some(stats)},
                 Err(err) => println!("Binance Error: {err}"),
             }
-            println!("price: {}", self.price);
         }
     }
 
-    fn get_price(&self) -> PriceLevel {
-        self.price
+    pub fn last_price(&self) -> PriceLevel {
+        self.last_price
     }
 
     /// Reading the price from Binance charts blocks the thread for a short period of time
@@ -103,10 +107,11 @@ impl PriceTracker {
     fn spawn_price_reader(
         market: Arc<Market>,
         symbol: Symbol,
-    ) -> Receiver<BinanceResult<SymbolPrice>> {
+    ) -> Receiver<BinanceResult<PriceStats>> {
         let (tx, rx) = channel();
         thread::spawn(move || loop {
-            let price = market.get_price(symbol);
+            let price = market.get_24h_price_stats(symbol);
+            //market.get_klines(symbol, "1m", None, None, None)
             match tx.send(price) {
                 Ok(_) => thread::sleep(crate::TICK_INTERVAL),
                 Err(_) => break,
@@ -131,7 +136,7 @@ impl Into<String> for Symbol {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PriceLevel(pub f64);
 
 impl PriceLevel {
@@ -141,11 +146,5 @@ impl PriceLevel {
 impl Display for PriceLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Price: {}", self.0)
-    }
-}
-
-impl Into<PriceLevel> for SymbolPrice {
-    fn into(self) -> PriceLevel {
-        PriceLevel(self.price)
     }
 }
