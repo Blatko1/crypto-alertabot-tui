@@ -54,16 +54,13 @@ impl Bot {
     }
 
     // TODO maybe do inlining
-    pub fn get_price(&self) -> PriceLevel {
-        self.live_stats.price()
-    }
-
-    pub fn get_symbol(&self) -> Symbol {
-        self.symbol
+    pub fn live_stats(&self) -> &LiveStats {
+        &self.live_stats
     }
 }
 
 struct LiveStats {
+    symbol: Symbol,
     last_price: PriceLevel,
     price_change: String,
     price_change_percent: String,
@@ -75,6 +72,7 @@ impl LiveStats {
     fn new(market: Arc<Market>, symbol: Symbol) -> Self {
         let reader = Self::spawn_price_reader(market, symbol);
         Self {
+            symbol,
             last_price: Default::default(),
             price_change: String::from("{PRICE CHANGE}"),
             price_change_percent: String::from("{PRICE CHANGE PERCENT}"),
