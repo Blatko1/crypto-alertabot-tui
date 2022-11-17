@@ -1,12 +1,13 @@
 use std::{
+    fmt::Display,
     sync::{
         mpsc::{channel, Receiver},
         Arc,
     },
-    thread, fmt::Display,
+    thread,
 };
 
-use binance::{errors::Result as BinanceResult, market::Market, model::{SymbolPrice, PriceStats}, api::Binance};
+use binance::{api::Binance, errors::Result as BinanceResult, market::Market, model::PriceStats};
 
 use crate::error::Result;
 
@@ -62,8 +63,8 @@ impl Bot {
 struct LiveStats {
     symbol: Symbol,
     last_price: PriceLevel,
-    price_change: String,
-    price_change_percent: String,
+    price_change_24h: String,
+    price_change_24h_percent: String,
     volume: f64,
     reader: Receiver<BinanceResult<PriceStats>>,
 }
@@ -73,9 +74,9 @@ impl LiveStats {
         let reader = Self::spawn_price_reader(market, symbol);
         Self {
             symbol,
-            last_price: Default::default(),
-            price_change: String::from("{PRICE CHANGE}"),
-            price_change_percent: String::from("{PRICE CHANGE PERCENT}"),
+            last_price: PriceLevel::NAN,
+            price_change_24h: String::from("{PRICE CHANGE}"),
+            price_change_24h_percent: String::from("{PRICE CHANGE PERCENT}"),
             volume: Default::default(),
             reader,
         }
@@ -84,14 +85,35 @@ impl LiveStats {
     fn update(&mut self) {
         if let Some(price) = self.reader.try_iter().last() {
             match price {
-                Ok(stats) => {self.stats = Some(stats)},
+                Ok(stats) => {
+                    self.last_price = PriceLevel(stats.last_price);
+                    self.price_change_24h = stats.price_change;
+                    self.price_change_24h_percent = stats.price_change_percent;
+                    self.volume = stats.volume;
+                }
                 Err(err) => println!("Binance Error: {err}"),
             }
         }
     }
 
+    pub fn symbol(&self) -> Symbol {
+        self.symbol
+    }
+
     pub fn last_price(&self) -> PriceLevel {
         self.last_price
+    }
+
+    pub fn price_change_24h(&self) -> &str {
+        &self.price_change_24h
+    }
+
+    pub fn price_change_24h_percent(&self) -> &str {
+        &self.price_change_24h_percent
+    }
+
+    pub fn volume(&self) -> f64 {
+        self.volume
     }
 
     /// Reading the price from Binance charts blocks the thread for a short period of time
@@ -134,7 +156,7 @@ impl Into<String> for Symbol {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct PriceLevel(pub f64);
 
 impl PriceLevel {

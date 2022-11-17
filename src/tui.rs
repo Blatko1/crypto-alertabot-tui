@@ -1,9 +1,9 @@
 use tui::{
     backend::Backend,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect, Corner},
     text::{Span, Spans},
-    widgets::{Block, Borders, Paragraph, Wrap},
-    Frame, Terminal,
+    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap, ListState},
+    Frame,
 };
 
 pub struct TUI {
@@ -29,7 +29,7 @@ impl TUI {
         let top_bottom = Layout::default()
             .margin(1)
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(8), Constraint::Max(3)])
+            .constraints([Constraint::Min(6), Constraint::Max(3)])
             .split(terminal_size);
 
         // BOTTOM LIVE_PRICE OBJECT
@@ -57,9 +57,9 @@ impl TUI {
 
     pub fn render<B: Backend>(&self, frame: &mut Frame<B>) {
         self.alert_box.render(frame);
-        //self.input_box.render(frame);
-        //self.live_price.render(frame);
-        //self.trigger_list.render(frame);
+        self.input_box.render(frame);
+        self.live_price.render(frame);
+        self.trigger_list.render(frame);
     }
 }
 
@@ -107,7 +107,21 @@ impl StaticObject for TriggerList {
     }
 
     fn render<B: Backend>(&self, frame: &mut Frame<B>) {
-        todo!()
+        let items = [ListItem::new("Price Trigger at 1200"),
+        ListItem::new("Mama ti")];
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .title("Price Triggers")
+                    .borders(Borders::all()),
+            ).start_corner(Corner::BottomLeft).repeat_highlight_symbol(true)
+            .highlight_symbol(">>");
+
+        let mut state = ListState::default();
+        state.select(Some(0));
+
+        frame.render_stateful_widget(list, self.area, &mut state);
     }
 }
 
@@ -122,7 +136,11 @@ impl StaticObject for InputBox {
     }
 
     fn render<B: Backend>(&self, frame: &mut Frame<B>) {
-        todo!()
+        let temp = Block::default()
+                    .title("Input Box")
+                    .borders(Borders::all());
+
+        frame.render_widget(temp, self.area);
     }
 }
 
@@ -137,7 +155,17 @@ impl StaticObject for LivePrice {
     }
 
     fn render<B: Backend>(&self, frame: &mut Frame<B>) {
-        todo!()
+        let text = vec![Spans::from(vec![
+            Span::raw("Symbol: {PRICE SYMBOL}"),
+            Span::raw("Price: {PRICE}")
+        ])];
+        let paragraph = Paragraph::new(text).block(
+            Block::default()
+                .borders(Borders::all())
+                .title("Live Stats"),
+        )
+        .alignment(Alignment::Center);
+        frame.render_widget(paragraph, self.area)
     }
 }
 
