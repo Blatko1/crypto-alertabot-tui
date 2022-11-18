@@ -1,6 +1,7 @@
 use crossterm::event::KeyEvent;
 use tui::{backend::Backend, Terminal};
 
+use crate::bot::Bot;
 use crate::error::Result;
 use crate::{
     input::{InputHandler, Interruption},
@@ -14,9 +15,12 @@ pub struct Console<B: Backend> {
     input_mode: InputMode,
 
     should_exit: bool,
+    //tick: u16,
 }
 
 impl<B: Backend> Console<B> {
+    //const TICKS_PER_UPDATE: u16 = 1;
+
     pub fn new(terminal: Terminal<B>) -> Result<Self> {
         let mut tui = TUI::new();
         tui.resize(terminal.size()?);
@@ -27,7 +31,23 @@ impl<B: Backend> Console<B> {
             input_mode: InputMode::Editing,
 
             should_exit: false,
+            //tick: 0,
         })
+    }
+
+    /// Increments the inner ticker and schedules TUI updates per `TICKS_PER_UPDATE`.
+    pub fn update(&mut self, bot: &Bot) {
+        //self.tick += 1;
+        //
+        //if self.tick >= Self::TICKS_PER_UPDATE {
+        //    self.update_tui(bot)
+        //    self.tick = 0;
+        //};
+        self.update_tui(bot);
+    }
+
+    fn update_tui(&mut self, bot: &Bot) {
+        self.tui.update(bot)
     }
 
     pub fn process_input(&mut self, event: KeyEvent) {

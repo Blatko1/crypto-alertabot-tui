@@ -19,7 +19,7 @@ mod input;
 mod tui;
 //mod save;
 
-const TICK_INTERVAL: Duration = Duration::from_millis(2000);
+const TICK_INTERVAL: Duration = Duration::from_millis(1000);
 const RESIZE_BATCH_WAIT_DURATION: Duration = Duration::from_millis(100);
 
 fn main() -> Result<()> {
@@ -39,13 +39,13 @@ fn main() -> Result<()> {
     let mut bot = Bot::new()?;
 
     // ====================== MAIN LOOP ======================
-    let mut last = Instant::now();
 
-    console.render()?;
+    let mut last = Instant::now();
     loop {
+        console.render()?;
+
         let elapsed = last.elapsed();
         let timeout = TICK_INTERVAL.checked_sub(elapsed).unwrap_or(Duration::ZERO);
-
         if event::poll(timeout)? == true {
             match event::read()? {
                 event::Event::Key(key) => console.process_input(key),
@@ -55,22 +55,22 @@ fn main() -> Result<()> {
                 }
                 _ => (),
             }
-
-            if console.should_exit() {
-                break;
-            }
         }
 
-        // One tick happens every 2 seconds. 1 tick == 2 seconds
+        // One tick happens every 1 second. 1 tick == 1 second
         if elapsed >= TICK_INTERVAL {
             last = Instant::now();
 
-            bot.tick();
+            bot.update();
+            console.update(&bot);
+        }
 
-            console.render()?;
+        if console.should_exit() {
+            break;
         }
     }
 
+    // ===================== SAVE && EXIT =====================
     terminal::disable_raw_mode()?;
     crossterm::execute!(io::stdout(), LeaveAlternateScreen)?;
 
